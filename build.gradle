@@ -1,6 +1,35 @@
-plugins {
-	id 'maven-publish'
-	id 'fabric-loom' version "0.12-SNAPSHOT"
+buildscript {
+	repositories {
+		maven { url = "https://repo.spongepowered.org/maven" }
+		maven { url = "https://maven.minecraftforge.net/" }
+	}
+
+	dependencies {
+		classpath "net.minecraftforge.gradle:ForgeGradle:3.+"
+		classpath "org.spongepowered:mixingradle:0.7.+"
+	}
+}
+
+apply plugin: "net.minecraftforge.gradle"
+apply plugin: "org.spongepowered.mixin"
+
+minecraft {
+	mappings channel: "stable", version: "39-1.12"
+	runs {
+		server {
+			workingDirectory project.file("run")
+			property "forge.logging.markers", "REGISTRIES"
+			property "forge.logging.console.level", "debug"
+			property "fml.coreMods.load", "alternate.current.core.CoreMod"
+		}
+
+		client {
+			workingDirectory project.file("run")
+			property "forge.logging.markers", "REGISTRIES"
+			property "forge.logging.console.level", "debug"
+			property "fml.coreMods.load", "alternate.current.core.CoreMod"
+		}
+	}
 }
 
 sourceCompatibility = JavaVersion.VERSION_1_8
@@ -11,64 +40,63 @@ version = project.mod_version
 group = project.maven_group
 
 repositories {
-	maven {
-		name = 'legacy-fabric'
-		url = 'https://maven.legacyfabric.net'
-	}
+	maven { url = "https://repo.spongepowered.org/maven" }
 }
 
-loom {
-	setIntermediaryUrl('https://maven.legacyfabric.net/net/fabricmc/intermediary/%1$s/intermediary-%1$s-v2.jar');
-	customMinecraftManifest.set("https://meta.legacyfabric.net/v2/manifest/${minecraft_version}")
+configurations {
+	include
+	implementation.extendsFrom include
 }
 
 dependencies {
-	minecraft "com.mojang:minecraft:${project.minecraft_version}"
-	mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
-	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+	include("org.spongepowered:mixin:${mixin_version}") {
+		transitive = false
+	}
 }
 
 processResources {
 	inputs.property "version", project.version
 
-	filesMatching("fabric.mod.json") {
+	filesMatching("mcmod.info") {
 		expand "version": project.version
 	}
 }
 
-tasks.withType(JavaCompile).configureEach {
-	// ensure that the encoding is set to UTF-8, no matter what the system default is
-	// this fixes some edge cases with special characters not displaying correctly
-	// see http://yodaconditions.net/blog/fix-for-java-file-encoding-problems-with-gradle.html
-	// If Javadoc is generated, this must be specified in that task too.
-	it.options.encoding = "UTF-8"
-	if (JavaVersion.current().isJava9Compatible()) it.options.release = 8
-}
-
-java {
-	// Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
-	// if it is present.
-	// If you remove this line, sources will not be generated.
-	withSourcesJar()
-}
-
 jar {
+	manifest {
+		attributes "FMLCorePlugin": "alternate.current.core.CoreMod",
+				   "FMLCorePluginContainsFMLMod": "true",
+				   "ForceLoadAsMod": "true",
+				   "TweakClass": "org.spongepowered.asm.launch.MixinTweaker",
+				   "TweakOrder": "0",
+				   "MixinConfigs": "alternate-current.mixins.json",
+
+				   "Specification-Title": "alternate-current",
+				   "Specification-Version": "1",
+				   "Implementation-Title": project.name,
+				   "Implementation-Version": project.version,
+				   "Implementation-Timestamp": new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
+	}
+
+	from {
+		configurations.include.collect { it.isDirectory() ? it : zipTree(it) }
+	} {
+		rename "LICENSE.txt", "org/spongepowered/LICENSE.txt"
+		exclude "META-INF/*.SF"
+		exclude "META-INF/*.RSA"
+		exclude "META-INF/*.MF"
+
+		exclude "**/*.html"
+	}
+
 	from("LICENSE") {
 		rename { "${it}_${project.archivesBaseName}"}
 	}
+
+	finalizedBy "reobfJar"
 }
 
-// configure the maven publication
-publishing {
-	publications {
-		mavenJava(MavenPublication) {
-			from components.java
-		}
-	}
-
-	// select the repositories you want to publish to
-	repositories {
-		// uncomment to publish to the local maven
-		// mavenLocal()
-	}
+mixin {
+	add sourceSets.main, "alternate-current.refmap.json"
 }

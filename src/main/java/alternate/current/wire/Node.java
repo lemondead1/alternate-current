@@ -1,45 +1,52 @@
 package alternate.current.wire;
 
-import java.util.Arrays;
-
 import alternate.current.wire.WireHandler.Directions;
-
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.server.world.ServerWorld;
+import net.minecraft.block.state.IBlockState;
+import net.minecraft.init.Blocks;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.WorldServer;
+
+import java.util.Arrays;
 
 /**
  * A Node represents a block in the world. It also holds a few other pieces of
  * information that speed up the calculations in the WireHandler class.
- * 
+ *
  * @author Space Walker
  */
 public class Node {
 
 	// flags that encode the Node type
 	private static final int CONDUCTOR = 0b01;
-	private static final int SOURCE    = 0b10;
+	private static final int SOURCE = 0b10;
 
-	final ServerWorld world;
+	final WorldServer world;
 	final Node[] neighbors;
 
 	BlockPos pos;
-	BlockState state;
+	IBlockState state;
 	boolean invalid;
 
 	private int flags;
 
-	/** The previous node in the priority queue. */
+	/**
+	 * The previous node in the priority queue.
+	 */
 	Node prev_node;
-	/** The next node in the priority queue. */
+	/**
+	 * The next node in the priority queue.
+	 */
 	Node next_node;
-	/** The priority with which this node was queued. */
+	/**
+	 * The priority with which this node was queued.
+	 */
 	int priority;
-	/** The wire that queued this node for an update. */
+	/**
+	 * The wire that queued this node for an update.
+	 */
 	WireNode neighborWire;
 
-	Node(ServerWorld world) {
+	Node(WorldServer world) {
 		this.world = world;
 		this.neighbors = new Node[Directions.ALL.length];
 	}
@@ -53,7 +60,7 @@ public class Node {
 			return false;
 		}
 
-		Node node = (Node)obj;
+		Node node = (Node) obj;
 
 		return world == node.world && pos.equals(node.pos);
 	}
@@ -63,7 +70,7 @@ public class Node {
 		return pos.hashCode();
 	}
 
-	Node set(BlockPos pos, BlockState state, boolean clearNeighbors) {
+	Node set(BlockPos pos, IBlockState state, boolean clearNeighbors) {
 		if (state.getBlock() == Blocks.REDSTONE_WIRE) {
 			throw new IllegalStateException("Cannot update a regular Node to a WireNode!");
 		}
@@ -78,10 +85,10 @@ public class Node {
 
 		this.flags = 0;
 
-		if (this.state.method_11734()) {
+		if (this.state.isNormalCube()) {
 			this.flags |= CONDUCTOR;
 		}
-		if (this.state.method_11735()) {
+		if (this.state.canProvidePower()) {
 			this.flags |= SOURCE;
 		}
 
